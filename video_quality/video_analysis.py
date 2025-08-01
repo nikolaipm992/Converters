@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 def analyze_video_file(filepath):
-    """Анализирует один видеофайл с помощью ffmpeg"""
+    """Анализирует один видеофайл с помощью ffmpeg - полная информация"""
     try:
         # Выполняем команду ffmpeg -i для получения информации
         result = subprocess.run([
@@ -34,7 +34,7 @@ def analyze_video_file(filepath):
             info['video_codec'] = codec_match.group(1) if codec_match else 'Unknown'
             # Извлекаем битрейт
             bitrate_match = re.search(r'(\d+)\s*kb/s', video_info)
-            info['bitrate'] = bitrate_match.group(1) + ' kb/s' if bitrate_match else 'Unknown'
+            info['video_bitrate'] = bitrate_match.group(1) + ' kb/s' if bitrate_match else 'Unknown'
             # Извлекаем FPS
             fps_match = re.search(r'(\d+(?:\.\d+)?)\s*fps', video_info)
             info['fps'] = fps_match.group(1) if fps_match else 'Unknown'
@@ -46,6 +46,19 @@ def analyze_video_file(filepath):
             # Извлекаем аудио кодек
             a_codec_match = re.search(r'Audio: ([^, ]+)', audio_info)
             info['audio_codec'] = a_codec_match.group(1) if a_codec_match else 'Unknown'
+            # Извлекаем аудио битрейт
+            a_bitrate_match = re.search(r'(\d+)\s*kb/s', audio_info)
+            info['audio_bitrate'] = a_bitrate_match.group(1) + ' kb/s' if a_bitrate_match else 'Unknown'
+            # Извлекаем частоту дискретизации
+            a_freq_match = re.search(r'(\d+)\s*Hz', audio_info)
+            info['audio_frequency'] = a_freq_match.group(1) + ' Hz' if a_freq_match else 'Unknown'
+            # Извлекаем количество каналов
+            if 'stereo' in audio_info:
+                info['audio_channels'] = 'stereo'
+            elif 'mono' in audio_info:
+                info['audio_channels'] = 'mono'
+            else:
+                info['audio_channels'] = 'Unknown'
         
         return info
     
@@ -88,9 +101,12 @@ def print_results(results):
         print(f"⏱️  Длительность: {info.get('duration', 'N/A')}")
         print(f"📺 Разрешение: {info.get('resolution', 'N/A')}")
         print(f"🎬 Видео кодек: {info.get('video_codec', 'N/A')}")
-        print(f"📊 Битрейт: {info.get('bitrate', 'N/A')}")
+        print(f"📊 Видео битрейт: {info.get('video_bitrate', 'N/A')}")
         print(f"⚡ FPS: {info.get('fps', 'N/A')}")
         print(f"🎵 Аудио кодек: {info.get('audio_codec', 'N/A')}")
+        print(f"🔊 Аудио битрейт: {info.get('audio_bitrate', 'N/A')}")
+        print(f"🎼 Частота дискретизации: {info.get('audio_frequency', 'N/A')}")
+        print(f"🎧 Каналы: {info.get('audio_channels', 'N/A')}")
 
 def save_results_to_file(results, output_file):
     """Сохраняет результаты в текстовый файл"""
@@ -109,9 +125,12 @@ def save_results_to_file(results, output_file):
             f.write(f"Длительность: {info.get('duration', 'N/A')}\n")
             f.write(f"Разрешение: {info.get('resolution', 'N/A')}\n")
             f.write(f"Видео кодек: {info.get('video_codec', 'N/A')}\n")
-            f.write(f"Битрейт: {info.get('bitrate', 'N/A')}\n")
+            f.write(f"Видео битрейт: {info.get('video_bitrate', 'N/A')}\n")
             f.write(f"FPS: {info.get('fps', 'N/A')}\n")
             f.write(f"Аудио кодек: {info.get('audio_codec', 'N/A')}\n")
+            f.write(f"Аудио битрейт: {info.get('audio_bitrate', 'N/A')}\n")
+            f.write(f"Частота дискретизации: {info.get('audio_frequency', 'N/A')}\n")
+            f.write(f"Каналы: {info.get('audio_channels', 'N/A')}\n")
             f.write("\n")
 
 # Основной код

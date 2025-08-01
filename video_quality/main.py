@@ -1,366 +1,409 @@
-import os
 import ffmpeg
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import multiprocessing
+import os
 import sys
-from threading import Lock
+import multiprocessing
+import psutil
 import time
+from pathlib import Path
+import concurrent.futures
+from typing import Dict, List
+import subprocess
 
-INPUT_FOLDER = "."
-OUTPUT_SUFFIX = "converted_"
-VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mkv', '.mov', '.flv', '.wmv', '.webm'}
-FFMPEG_PATH = r"D:\codecff\ffmpeg.exe"
-
-QUALITY_PRESETS = {
-    "1": {"name": "Эконом (480p)", "crf": 28, "resolution": "854:480"},
-    "2": {"name": "Стандарт (720p)", "crf": 23, "resolution": "1280:720"},
-    "3": {"name": "HD (1080p)", "crf": 18, "resolution": "1920:1080"},
-    "4": {"name": "Высокое (1080p+)", "crf": 16, "resolution": "1920:1080"}
-}
-
-print_lock = Lock()
-global_progress = 0
-total_progress_parts = 0
-progress_lock = Lock()
-
-def check_gpu_support():
-    """Проверяет доступные GPU кодеки и возвращает лучший"""
-    try:
-        # Проверяем в порядке приоритета
-        gpu_codecs = [
-            ('h264_nvenc', 'NVIDIA RTX 3060'),  # NVIDIA GPU
-            ('h264_qsv', 'Intel Quick Sync'),   # Intel GPU
-            ('h264_vaapi', 'Intel VAAPI')       # Альтернатива Intel
-        ]
+class CarVideoConverter:
+    def __init__(self):
+        self.cpu_count = multiprocessing.cpu_count()
+        self.memory_gb = psutil.virtual_memory().total / (1024**3)
+        self.gpu_available = self._check_gpu_support()
         
-        for codec, name in gpu_codecs:
-            try:
-                # Пробуем создать тестовый файл
-                (
-                    ffmpeg
-                    .input('test', t=1)
-                    .output('test.mp4', vcodec=codec, pix_fmt='yuv420p')
-                    .run(cmd=FFMPEG_PATH, overwrite_output=True, capture_stdout=True, capture_stderr=True)
-                )
-                if os.path.exists('test.mp4'):
-                    os.remove('test.mp4')
-                return codec, name
-            except:
-                continue
-        return None, None
-    except:
-        return None, None
-
-def get_quality_choice():
-    print("\n🎬 Выберите качество видео на выходе:")
-    print("-" * 40)
-    for key, preset in QUALITY_PRESETS.items():
-        print(f"{key}. {preset['name']}")
-    print("-" * 40)
-    
-    while True:
-        choice = input("Введите номер качества (1-4): ").strip()
-        if choice in QUALITY_PRESETS:
-            return QUALITY_PRESETS[choice]
-        print("❌ Неверный выбор. Попробуйте еще раз.")
-
-def get_processing_options():
-    # Проверяем GPU
-    gpu_codec, gpu_name = check_gpu_support()
-    use_gpu = False
-    
-    if gpu_codec:
-        print(f"\n⚡ Найден GPU: {gpu_name} ({gpu_codec})")
-        gpu_choice = input("Использовать GPU для ускорения? (y/n, по умолчанию y): ").strip().lower()
-        use_gpu = gpu_choice in ['y', 'yes', 'д', 'да', '']
-        if use_gpu:
-            print(f"🎮 Будет использоваться: {gpu_name}")
-    else:
-        print("\n💻 GPU ускорение недоступно")
-    
-    # Количество потоков
-    cpu_count = multiprocessing.cpu_count()
-    
-    # Оптимальные настройки для ноутбука
-    if use_gpu:
-        # При GPU используем меньше CPU потоков
-        recommended_threads = min(4, cpu_count // 2)
-        print(f"\n💡 Рекомендация для ноутбука с GPU: {recommended_threads} потоков")
-    else:
-        # Без GPU используем больше потоков, но не все
-        recommended_threads = min(8, max(cpu_count // 2, 2))
-        print(f"\n💡 Рекомендация для ноутбука: {recommended_threads} потоков")
-    
-    print(f"🖥️  Доступно ядер CPU: {cpu_count}")
-    
-    while True:
-        try:
-            threads_input = input(f"Количество потоков (1-{cpu_count}, по умолчанию {recommended_threads}): ").strip()
-            if not threads_input:
-                max_workers = recommended_threads
-                break
-            max_workers = int(threads_input)
-            if 1 <= max_workers <= cpu_count:
-                break
-            else:
-                print(f"Введите число от 1 до {cpu_count}")
-        except ValueError:
-            print("Введите корректное число")
-    
-    return use_gpu, max_workers, gpu_codec
-
-def get_video_duration(input_path):
-    try:
-        probe = ffmpeg.probe(input_path, cmd=FFMPEG_PATH.replace('ffmpeg.exe', 'ffprobe.exe'))
-        duration = float(probe['format']['duration'])
-        return duration
-    except:
-        return None
-
-def update_global_progress(parts_completed):
-    global global_progress
-    with progress_lock:
-        global_progress += parts_completed
-        if total_progress_parts > 0:
-            percent = (global_progress / total_progress_parts) * 100
-            with print_lock:
-                print(f"\r📊 Общий прогресс: {percent:.1f}% ({global_progress}/{total_progress_parts})", end='', flush=True)
-
-def convert_video_detailed_progress(input_path, output_path, quality_preset, use_gpu=False, gpu_codec=None, total_files=1, current_file=1):
-    try:
-        filename = Path(input_path).name
-        
-        quality_suffix = {
-            "854:480": "_480p",
-            "1280:720": "_720p", 
-            "1920:1080": "_1080p"
-        }.get(quality_preset["resolution"], "_HD")
-        
-        duration = get_video_duration(input_path)
-        if not duration:
-            duration = 3600
-        
-        stream = ffmpeg.input(input_path)
-        
-        # Масштабирование с оптимизацией для ноутбука
-        if quality_preset["resolution"] == "1920:1080":
-            scale_filter = 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:1.0'
-        elif quality_preset["resolution"] == "1280:720":
-            scale_filter = 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.8'
-        else:
-            scale_filter = f'scale={quality_preset["resolution"]}:force_original_aspect_ratio=decrease,pad={quality_preset["resolution"]}:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.5'
-        
-        # Параметры вывода с оптимизацией для ноутбука
-        output_params = {
-            'acodec': 'aac',
-            'audio_bitrate': '320k',
-            'pix_fmt': 'yuv420p'
+        # Пресеты для авто с 2:1 соотношением сторон
+        self.video_presets = {
+            "economy": {
+                "name": "Эконом (меньше места)",
+                "video_codec": "libx264",
+                "video_bitrate": "1500k",
+                "max_bitrate": "2000k",
+                "resolution": "1280x640",
+                "fps": 24,
+                "preset": "ultrafast",
+                "threads": self._get_optimal_threads()
+            },
+            "balanced": {
+                "name": "Баланс (оптимально)",
+                "video_codec": "libx264",
+                "video_bitrate": "3000k",
+                "max_bitrate": "4000k",
+                "resolution": "1920x960",
+                "fps": 30,
+                "preset": "veryfast",
+                "threads": self._get_optimal_threads()
+            },
+            "quality": {
+                "name": "Качество (лучшее)",
+                "video_codec": "libx264",
+                "video_bitrate": "5000k",
+                "max_bitrate": "6000k",
+                "resolution": "1920x960",
+                "fps": 30,
+                "preset": "faster",
+                "threads": self._get_optimal_threads()
+            },
+            "ultra": {
+                "name": "Ультра (максимум)",
+                "video_codec": "libx265",
+                "video_bitrate": "6000k",
+                "max_bitrate": "7000k",
+                "resolution": "1920x960",
+                "fps": 30,
+                "preset": "fast",
+                "threads": self._get_optimal_threads()
+            }
         }
         
-        # Выбор кодека с оптимизацией для ноутбука
-        if use_gpu and gpu_codec:
-            output_params['vcodec'] = gpu_codec
-            
-            # Оптимизированные параметры для разных GPU
-            if gpu_codec == 'h264_nvenc':
-                # Параметры для RTX 3060
-                output_params.update({
-                    'preset': 'p4',           # Баланс скорость/качество
-                    'cq': quality_preset["crf"],
-                    'b_ref_mode': '2',        # Улучшенные B-кадры
-                    'rc': 'vbr',              # Variable bitrate
-                    'cq_profile': 'high_quality', # Профиль качества
-                    'gpu': 'any'              # Использовать любую доступную GPU
-                })
-            elif gpu_codec == 'h264_qsv':
-                # Параметры для Intel GPU
-                output_params.update({
-                    'preset': 'veryfast',
-                    'global_quality': quality_preset["crf"],
-                    'async_depth': '4',       # Асинхронная обработка
-                })
-            elif gpu_codec == 'h264_vaapi':
-                output_params.update({
-                    'compression_level': '7',
-                    'quality': 'good',
-                })
-            print(f"⚡ Используется GPU ускорение ({gpu_codec})")
-        else:
-            # Оптимизированные параметры для CPU на ноутбуке
-            output_params.update({
-                'vcodec': 'libx264',
-                'preset': 'fast',             # Быстрое кодирование
-                'crf': quality_preset["crf"],
-                'threads': '0',               # Автоопределение потоков
-                'profile:v': 'high',          # Высокий профиль
-                'level': '4.2'                # Совместимость
-            })
+        self.audio_settings = {
+            "codec": "aac",
+            "bitrate": "320k",
+            "sample_rate": 48000,
+            "channels": 2
+        }
         
-        output_params['vf'] = scale_filter
-        
-        print(f"\n🔄 [{current_file}/{total_files}] Конвертирую: {filename}")
-        print(f"🎯 Качество: {quality_preset['name']}")
-        
-        start_time = time.time()
-        
-        process = (
-            stream
-            .output(output_path, **output_params)
-            .run_async(cmd=FFMPEG_PATH, pipe_stderr=True, overwrite_output=True)
-        )
-        
-        parts_completed = 0
-        last_update = 0
-        
-        while True:
-            line = process.stderr.readline()
-            if not line and process.poll() is not None:
-                break
-            if line:
-                line_str = line.decode('utf-8', errors='ignore')
-                if 'frame=' in line_str or 'fps=' in line_str:
-                    current_part = min(int((parts_completed / 100) * 1000), 1000)
-                    if current_part > last_update:
-                        parts_to_update = current_part - last_update
-                        if parts_to_update > 0:
-                            update_global_progress(parts_to_update)
-                            last_update = current_part
-                    parts_completed += 1
-        
-        process.wait()
-        
-        remaining_parts = 1000 - last_update
-        if remaining_parts > 0:
-            update_global_progress(remaining_parts)
-        
-        if process.returncode == 0:
-            elapsed_time = time.time() - start_time
-            print(f"\n✅ [{current_file}/{total_files}] Готово: {Path(output_path).name} ({elapsed_time:.1f}с)")
-            return True, input_path
-        else:
-            print(f"\n❌ [{current_file}/{total_files}] Ошибка: {filename}")
-            return False, input_path
-        
-    except Exception as e:
-        print(f"\n❌ [{current_file}/{total_files}] Ошибка при конвертации {filename}: {e}")
-        return False, input_path
+        self.performance_settings = {
+            "max_workers": min(self.cpu_count, 4),
+            "buffer_size": "16M",
+            "slice_count": self.cpu_count
+        }
 
-def find_video_files(root_dir):
-    root_path = Path(root_dir).absolute()
+    def _check_gpu_support(self) -> bool:
+        """Проверка поддержки GPU ускорения"""
+        try:
+            result = subprocess.run(['ffmpeg', '-encoders'], 
+                                  capture_output=True, text=True, timeout=30)
+            if 'h264_nvenc' in result.stdout or 'hevc_nvenc' in result.stdout:
+                return True
+        except Exception as e:
+            print(f"GPU проверка: {e}")
+            pass
+        return False
+
+    def _get_optimal_threads(self) -> int:
+        """Оптимальное количество потоков для кодирования"""
+        return max(1, int(self.cpu_count * 0.75))
+
+    def _get_gpu_preset(self, preset_name: str) -> dict:
+        """Возвращает GPU-ускоренный пресет если доступно"""
+        if not self.gpu_available:
+            return self.video_presets[preset_name]
+            
+        gpu_presets = {
+            "economy": {
+                "video_codec": "h264_nvenc",
+                "preset": "p4",
+                "profile:v": "baseline"
+            },
+            "balanced": {
+                "video_codec": "h264_nvenc", 
+                "preset": "p3",
+                "profile:v": "main"
+            },
+            "quality": {
+                "video_codec": "h264_nvenc",
+                "preset": "p2",
+                "profile:v": "high"
+            },
+            "ultra": {
+                "video_codec": "hevc_nvenc",
+                "preset": "p3",
+                "profile:v": "main"
+            }
+        }
+        
+        base_preset = self.video_presets[preset_name].copy()
+        if preset_name in gpu_presets:
+            base_preset.update(gpu_presets[preset_name])
+        return base_preset
+
+    def convert_single_file(self, input_file: str, output_file: str, 
+                          preset_name: str = "balanced") -> dict:
+        """Конвертация одного файла с максимальной производительностью"""
+        try:
+            if not os.path.exists(input_file):
+                return {"success": False, "error": f"Файл не найден: {input_file}"}
+
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            input_path_obj = Path(input_file)
+            output_path_obj = Path(output_file)
+            
+            if input_path_obj.resolve() == output_path_obj.resolve():
+                # Если файлы совпадают, создаем временный файл
+                temp_output = output_path_obj.parent / f"temp_{output_path_obj.name}"
+                final_output = output_file
+                output_file = str(temp_output)
+            else:
+                temp_output = None
+                final_output = None
+
+            # Выбираем пресет
+            preset = self._get_gpu_preset(preset_name) if self.gpu_available \
+                    else self.video_presets[preset_name]
+            
+            audio = self.audio_settings
+
+            print(f"Конвертация: {input_path_obj.name}")
+            print(f"Пресет: {preset['name']}")
+            print(f"GPU ускорение: {'Да' if self.gpu_available else 'Нет'}")
+
+            # Подготавливаем аргументы
+            video_args = {
+                'vcodec': preset['video_codec'],
+                'b:v': preset['video_bitrate'],
+                'maxrate': preset['max_bitrate'],
+                'bufsize': str(int(preset['max_bitrate'].replace('k','')) * 2) + 'k',
+                'vf': f"scale={preset['resolution']}",
+                'r': preset['fps'],
+                'preset': preset['preset'],
+                'threads': preset['threads'],
+                'flags': '+low_delay',
+                'movflags': '+faststart',
+            }
+            
+            # Добавляем профиль для видео
+            if 'profile:v' in preset:
+                video_args['profile:v'] = preset['profile:v']
+
+            # Улучшенные настройки аудио для максимального качества
+            audio_args = {
+                'acodec': audio['codec'],
+                'b:a': audio['bitrate'],
+                'ar': audio['sample_rate'],
+                'ac': audio['channels'],
+                'q:a': 0,  # Максимальное качество AAC
+                'profile:a': 'aac_low'  # Профиль AAC
+            }
+
+            # Выполняем конвертацию
+            (
+                ffmpeg
+                .input(input_file)
+                .output(output_file, **video_args, **audio_args)
+                .overwrite_output()
+                .global_args('-y')
+                .global_args('-hide_banner')
+                .global_args('-loglevel', 'error')
+                .run()
+            )
+
+            # Если использовали временный файл, перемещаем его
+            if temp_output and final_output:
+                temp_output.replace(final_output)
+
+            return {"success": True, "error": None}
+
+        except ffmpeg.Error as e:
+            error_msg = f"FFmpeg ошибка: {e.stderr.decode() if e.stderr else str(e)}"
+            print(f"❌ Ошибка конвертации {input_file}: {error_msg}")
+            return {"success": False, "error": error_msg}
+        except Exception as e:
+            error_msg = f"Общая ошибка: {str(e)}"
+            print(f"❌ Ошибка конвертации {input_file}: {error_msg}")
+            return {"success": False, "error": error_msg}
+
+    def batch_convert(self, input_files: List[str], output_dir: str = ".", 
+                     preset_name: str = "balanced") -> Dict[str, dict]:
+        """Пакетная конвертация с сохранением в указанной папке"""
+        results = {}
+        
+        for i, input_file in enumerate(input_files):
+            # Создаем имя для выходного файла в той же папке
+            input_path = Path(input_file)
+            
+            # Если output_dir не указан или ".", сохраняем в той же папке
+            if output_dir == "." or output_dir == input_path.parent:
+                output_file = input_path.parent / f"{input_path.stem}_converted.mp4"
+            else:
+                # Иначе сохраняем в указанной папке
+                output_file = Path(output_dir) / f"{input_path.stem}_converted.mp4"
+            
+            # Если файл уже существует с таким именем, добавляем номер
+            counter = 1
+            while output_file.exists():
+                if output_dir == "." or output_dir == str(input_path.parent):
+                    output_file = input_path.parent / f"{input_path.stem}_converted_{counter}.mp4"
+                else:
+                    output_file = Path(output_dir) / f"{input_path.stem}_converted_{counter}.mp4"
+                counter += 1
+            
+            print(f"\n[{i+1}/{len(input_files)}] Обработка: {input_path.name}")
+            result = self.convert_single_file(str(input_path), str(output_file), preset_name)
+            results[input_file] = result
+            
+            if result["success"]:
+                print(f"✅ Успешно → {output_file.name}")
+            else:
+                print(f"❌ Ошибка: {result['error']}")
+            
+        return results
+
+    def auto_preset_selection(self, file_size_mb: float) -> str:
+        """Автоматический выбор пресета на основе размера файла"""
+        if file_size_mb > 8000:
+            return "economy"
+        elif file_size_mb > 4000:
+            return "balanced"
+        elif file_size_mb > 2000:
+            return "quality"
+        else:
+            return "ultra"
+
+    def get_system_info(self) -> str:
+        """Получение информации о системе"""
+        info = f"""
+💻 Системная информация:
+   CPU: {self.cpu_count} ядер
+   RAM: {self.memory_gb:.1f} ГБ
+   GPU ускорение: {'Да' if self.gpu_available else 'Нет'}
+        """
+        return info
+
+def find_video_files(directory: str = ".") -> List[str]:
+    """Поиск видео файлов в директории"""
+    video_extensions = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm'}
     video_files = []
     
-    for dirpath, dirnames, filenames in os.walk(root_path):
-        for filename in filenames:
-            file_path = Path(dirpath) / filename
-            if file_path.suffix.lower() in VIDEO_EXTENSIONS:
-                video_files.append((str(file_path), dirpath, filename))
+    path = Path(directory)
+    for file in path.iterdir():
+        if file.is_file() and file.suffix.lower() in video_extensions:
+            video_files.append(str(file))
     
     return video_files
 
-def process_videos_parallel(video_files, quality_preset, use_gpu, gpu_codec, max_workers):
-    global global_progress, total_progress_parts
-    root_path = Path(INPUT_FOLDER).absolute()
-    output_root = root_path.parent / (OUTPUT_SUFFIX + root_path.name)
-    
-    quality_suffix = {
-        "854:480": "_480p",
-        "1280:720": "_720p", 
-        "1920:1080": "_1080p"
-    }.get(quality_preset["resolution"], "_HD")
-    
-    processed_count = 0
-    error_count = 0
-    total_files = len(video_files)
-    total_progress_parts = total_files * 1000
-    
-    print(f"\n🚀 Начинаю обработку {total_files} файлов...")
-    print(f"⚡ Потоков: {max_workers}")
-    if use_gpu and gpu_codec:
-        gpu_name = {'h264_nvenc': 'NVIDIA RTX 3060', 'h264_qsv': 'Intel Quick Sync', 'h264_vaapi': 'Intel VAAPI'}.get(gpu_codec, gpu_codec)
-        print(f"🎮 Используется GPU ускорение ({gpu_name})")
-    print("-" * 60)
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_info = {}
-        file_counter = 1
-        
-        for input_path, dirpath, filename in video_files:
-            rel_dir = Path(dirpath).relative_to(root_path)
-            output_dir = output_root / rel_dir
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            output_file = output_dir / (Path(filename).stem + quality_suffix + ".mp4")
-            
-            future = executor.submit(
-                convert_video_detailed_progress, 
-                input_path, 
-                str(output_file), 
-                quality_preset, 
-                use_gpu, 
-                gpu_codec,
-                total_files, 
-                file_counter
-            )
-            future_to_info[future] = (filename, file_counter)
-            file_counter += 1
-        
-        completed_count = 0
-        for future in as_completed(future_to_info):
-            filename, file_num = future_to_info[future]
-            success, input_path = future.result()
-            
-            completed_count += 1
-            if success:
-                processed_count += 1
-            else:
-                error_count += 1
-    
-    return processed_count, error_count
-
 def main():
-    global global_progress, total_progress_parts
-    print("🎥 Конвертер видео с выбором качества")
-    print("🔊 Аудио всегда на максимуме (320 кбит/с)")
-    print("💻 Оптимизирован для ноутбука с двойным GPU")
-    print("=" * 45)
-    
+    # Проверяем, установлен ли ffmpeg
     try:
-        quality_preset = get_quality_choice()
-        use_gpu, max_workers, gpu_codec = get_processing_options()
-        
-        print(f"\n🔍 Ищу видео файлы в: {INPUT_FOLDER}")
-        video_files = find_video_files(INPUT_FOLDER)
-        
-        if not video_files:
-            print("❌ Видео файлы не найдены")
-            return
-        
-        print(f"📁 Найдено файлов: {len(video_files)}")
-        
-        print(f"\n⚠️  Будут конвертированы {len(video_files)} видео")
-        print("🔊 Аудио будет на максимальном качестве (320 кбит/с)")
-        confirm = input("Продолжить? (y/n): ").strip().lower()
-        
-        if confirm in ['y', 'yes', 'д', 'да', '']:
-            global_progress = 0
-            total_progress_parts = len(video_files) * 1000
-            processed, errors = process_videos_parallel(video_files, quality_preset, use_gpu, gpu_codec, max_workers)
-            print("\n" + "-" * 60)
-            print(f"📊 Результаты:")
-            print(f"✅ Успешно обработано: {processed}")
-            print(f"❌ Ошибок: {errors}")
-            if processed + errors > 0 and total_progress_parts > 0:
-                success_rate = (processed / (processed + errors)) * 100
-                print(f"📈 Процент успеха: {success_rate:.1f}%")
-            print("🎉 Обработка завершена!")
-        else:
-            print("❌ Операция отменена")
-            
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Операция прервана пользователем")
-    except Exception as e:
-        print(f"\n❌ Неожиданная ошибка: {e}")
+        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("❌ FFmpeg не найден! Пожалуйста, установите FFmpeg и добавьте его в PATH")
+        print("Скачать можно с: https://ffmpeg.org/download.html")
+        input("Нажмите Enter для выхода...")
+        sys.exit(1)
+    
+    converter = CarVideoConverter()
+    
+    print("🚀 Авто Видео Конвертер (2:1 соотношение сторон)")
+    print(converter.get_system_info())
+    
+    # Поиск видео файлов в текущей папке
+    print("🔍 Поиск видео файлов в текущей папке...")
+    input_files = find_video_files(".")
+    
+    if not input_files:
+        print("❌ Не найдено видео файлов в текущей папке")
+        input("Нажмите Enter для выхода...")
+        return
+    
+    print(f"📥 Найдено файлов: {len(input_files)}")
+    for file in input_files:
+        print(f"   - {Path(file).name}")
+    
+    # Выбор пресета
+    print("\n⚙️  Выберите пресет качества:")
+    print("   1. Economy (меньше места, 1280x640)")
+    print("   2. Balanced (баланс, 1920x960) [по умолчанию]")
+    print("   3. Quality (лучшее качество, 1920x960)")
+    print("   4. Ultra (максимум, H.265, 1920x960)")
+    print("   5. Auto (автоматический выбор по размеру файла)")
+    
+    choice = input("\nВведите номер (1-5) или нажмите Enter для Balanced: ").strip()
+    
+    preset_map = {
+        "1": "economy",
+        "2": "balanced", 
+        "3": "quality",
+        "4": "ultra",
+        "5": "auto"
+    }
+    
+    if choice in preset_map:
+        preset_choice = preset_map[choice]
+    else:
+        preset_choice = "balanced"
+    
+    auto_preset = (preset_choice == "auto")
+    if not auto_preset and preset_choice != "balanced":
+        preset_name = preset_choice
+    else:
+        preset_name = "balanced"
+    
+    print(f"\n🎯 Выбран режим: {'Автоматический' if auto_preset else preset_name}")
+    
+    start_time = time.time()
+    
+    if auto_preset:
+        print("🔄 Автоматический выбор пресетов...")
+        results = {}
+        for input_file in input_files:
+            try:
+                size_mb = os.path.getsize(input_file) / (1024 * 1024)
+                preset = converter.auto_preset_selection(size_mb)
+                
+                input_path = Path(input_file)
+                # Сохраняем в той же папке
+                output_file = input_path.parent / f"{input_path.stem}_converted.mp4"
+                
+                # Проверяем уникальность имени файла
+                counter = 1
+                while output_file.exists():
+                    output_file = input_path.parent / f"{input_path.stem}_converted_{counter}.mp4"
+                    counter += 1
+                
+                print(f"\nОбработка: {input_path.name} ({size_mb:.1f} МБ)")
+                print(f"Выбран пресет: {preset}")
+                result = converter.convert_single_file(str(input_path), str(output_file), preset)
+                results[input_file] = result
+                
+                if result["success"]:
+                    print(f"✅ Успешно → {output_file.name}")
+                else:
+                    print(f"❌ Ошибка: {result['error']}")
+            except Exception as e:
+                results[input_file] = {"success": False, "error": str(e)}
+    else:
+        print(f"🚀 Начало конвертации с пресетом: {preset_name}")
+        # Сохраняем в той же папке (второй параметр "." или опущен)
+        results = converter.batch_convert(input_files, ".", preset_name)
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    
+    successful = sum(1 for r in results.values() if r["success"])
+    
+    print(f"\n📊 РЕЗУЛЬТАТЫ:")
+    print(f"   Успешно: {successful}/{len(results)}")
+    print(f"   Время: {duration:.1f} секунд")
+    if duration > 0 and successful > 0:
+        print(f"   Скорость: {successful/duration:.2f} файлов/сек")
+    
+    if successful < len(results):
+        print(f"\n⚠️  Ошибок: {len(results) - successful}")
+        failed_files = [f for f, r in results.items() if not r["success"]]
+        for failed_file in failed_files[:5]:
+            print(f"   - {Path(failed_file).name}")
+        if len(failed_files) > 5:
+            print(f"   ... и ещё {len(failed_files) - 5} файлов")
+    
+    print(f"\n📁 Сконвертированные файлы сохранены в той же папке")
+    input("\nНажмите Enter для выхода...")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Прервано пользователем")
+        input("Нажмите Enter для выхода...")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Критическая ошибка: {e}")
+        import traceback
+        print(f"Трассировка: {traceback.format_exc()}")
+        input("Нажмите Enter для выхода...")
+        sys.exit(1)

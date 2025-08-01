@@ -1,11 +1,11 @@
 @echo off
 chcp 1251 >nul
-title Выбор действия
+title Медиа конвертер
 
 :menu
 cls
 echo ===============================
-echo    Выберите действие:
+echo    Медиа конвертер
 echo ===============================
 echo 1. Запустить видео конвертер (main.py)
 echo 2. Провести видеоанализ (video_analysis.py)
@@ -23,7 +23,8 @@ if errorlevel 1 goto run_converter
 :run_converter
 cls
 echo Запуск видео конвертера...
-python main.py
+echo ===============================
+call python main.py
 echo.
 echo Нажмите любую клавишу для возврата в меню...
 pause >nul
@@ -32,13 +33,15 @@ goto menu
 :run_analysis
 cls
 echo Проведение видеоанализа...
-python video_analysis.py
+echo ===============================
+call python video_analysis.py
 echo.
-echo Нажмите любую клавишу для возврата в меню или 0 для выхода...
-echo.
-set /p exit_choice=Нажмите Enter для возврата или введите 0 для выхода: 
-if "%exit_choice%"=="0" goto exit
+echo Нажмите любую клавишу для возврата в меню...
+pause >nul
 goto menu
 
 :exit
+echo.
+echo До свидания!
+timeout /t 1 >nul
 exit
