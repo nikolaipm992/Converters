@@ -1,56 +1,79 @@
 @echo off
 chcp 1251 >nul
-title ÐœÐµÐ´Ð¸Ð° ÐºÐ¾Ð½Ð²ÐµÑ€Ñ‚ÐµÑ€ Ð¸ ÑƒÑ‚Ð¸Ð»Ð¸Ñ‚Ñ‹
+title Ìåäèà êîíâåðòåð è óòèëèòû
 
-:: ÐŸÑƒÑ‚ÑŒ Ðº Ð²Ð¸Ñ€Ñ‚ÑƒÐ°Ð»ÑŒÐ½Ð¾Ð¹ ÑÑ€ÐµÐ´Ðµ
-set "VENV_PATH=venv"
+:: Îïðåäåëÿåì ïóòü ê ïàïêå, ãäå íàõîäèòñÿ ýòîò bat-ôàéë
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"  :: Óáèðàåì ïîñëåäíèé ñëýø
 
-:: ÐŸÑƒÑ‚ÑŒ Ðº ffmpeg
-set "FFMPEG_PATH=D:\codecs\ffmpeg\bin"
+:: Ïóòü ê âèðòóàëüíîé ñðåäå (â òîé æå ïàïêå, ÷òî è bat-ôàéë)
+set "VENV_PATH=%SCRIPT_DIR%\venv"
 
-:: Ð”Ð¾Ð±Ð°Ð²Ð»ÑÐµÐ¼ Ð¿ÑƒÑ‚ÑŒ Ðº ffmpeg Ð² Ð¿ÐµÑ€ÐµÐ¼ÐµÐ½Ð½ÑƒÑŽ PATH
+:: Ïóòü ê ffmpeg
+set "FFMPEG_PATH=D:\codecs\ffmpeg"
+set "FFMPEG_EXE=%FFMPEG_PATH%\ffmpeg.exe"
+
+:: Äîáàâëÿåì ïóòü ê ffmpeg â ïåðåìåííóþ PATH
 set "PATH=%FFMPEG_PATH%;%PATH%"
 
-:: ÐÐºÑ‚Ð¸Ð²Ð¸Ñ€ÑƒÐµÐ¼ Ð²Ð¸Ñ€Ñ‚ÑƒÐ°Ð»ÑŒÐ½ÑƒÑŽ ÑÑ€ÐµÐ´Ñƒ
-if exist "%VENV_PATH%\Scripts\activate.bat" (
-    call "%VENV_PATH%\Scripts\activate.bat"
-    echo âœ… Ð’Ð¸Ñ€Ñ‚ÑƒÐ°Ð»ÑŒÐ½Ð°Ñ ÑÑ€ÐµÐ´Ð° Ð°ÐºÑ‚Ð¸Ð²Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð°
-    echo âœ… ÐŸÑƒÑ‚ÑŒ Ðº ffmpeg Ð´Ð¾Ð±Ð°Ð²Ð»ÐµÐ½: %FFMPEG_PATH%
-) else (
-    echo âŒ Ð’Ð¸Ñ€Ñ‚ÑƒÐ°Ð»ÑŒÐ½Ð°Ñ ÑÑ€ÐµÐ´Ð° Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½Ð°!
-    echo Ð¡Ð¾Ð·Ð´Ð°Ð¹Ñ‚Ðµ ÐµÑ‘ ÐºÐ¾Ð¼Ð°Ð½Ð´Ð¾Ð¹: python -m venv venv
+:: Ïðîâåðÿåì, ñóùåñòâóåò ëè ïóòü ê ffmpeg
+if not exist "%FFMPEG_PATH%" (
+    echo Ïóòü ê ffmpeg íå ñóùåñòâóåò: %FFMPEG_PATH%
+    echo Ïðîâåðüòå ïðàâèëüíîñòü ïóòè ê ffmpeg
     pause
     exit /b 1
 )
 
-:: ÐŸÑ€Ð¾Ð²ÐµÑ€ÑÐµÐ¼, Ð´Ð¾ÑÑ‚ÑƒÐ¿ÐµÐ½ Ð»Ð¸ ffmpeg
-ffmpeg -version >nul 2>&1
-if errorlevel 1 (
-    echo âŒ ffmpeg Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½ Ð¿Ð¾ Ð¿ÑƒÑ‚Ð¸: %FFMPEG_PATH%
-    echo Ð£Ð±ÐµÐ´Ð¸Ñ‚ÐµÑÑŒ, Ñ‡Ñ‚Ð¾ ffmpeg ÑƒÑÑ‚Ð°Ð½Ð¾Ð²Ð»ÐµÐ½ Ð¿Ñ€Ð°Ð²Ð¸Ð»ÑŒÐ½Ð¾
+:: Ïðîâåðÿåì, äîñòóïåí ëè èñïîëíÿåìûé ôàéë ffmpeg
+if not exist "%FFMPEG_EXE%" (
+    echo Èñïîëíÿåìûé ôàéë ffmpeg.exe íå íàéäåí ïî ïóòè: %FFMPEG_EXE%
+    echo Óáåäèòåñü, ÷òî ffmpeg óñòàíîâëåí ïðàâèëüíî è ôàéë ffmpeg.exe íàõîäèòñÿ â ïàïêå bin
     pause
     exit /b 1
+)
+
+:: Àêòèâèðóåì âèðòóàëüíóþ ñðåäó
+if exist "%VENV_PATH%\Scripts\activate.bat" (
+    call "%VENV_PATH%\Scripts\activate.bat"
+    echo Âèðòóàëüíàÿ ñðåäà àêòèâèðîâàíà: %VENV_PATH%
+    echo Ïóòü ê ffmpeg äîáàâëåí: %FFMPEG_PATH%
+) else (
+    echo Âèðòóàëüíàÿ ñðåäà íå íàéäåíà â ïàïêå: %VENV_PATH%
+    echo Ñîçäàéòå å¸ êîìàíäîé: python -m venv venv
+    pause
+    exit /b 1
+)
+
+:: Ïðîâåðÿåì, ðàáîòàåò ëè ffmpeg
+ffmpeg -version >nul 2>&1
+if errorlevel 1 (
+    echo ffmpeg íå ðàáîòàåò êîððåêòíî
+    echo Ïîïðîáóéòå äîáàâèòü ïóòü ê ffmpeg â ñèñòåìíóþ ïåðåìåííóþ PATH âðó÷íóþ
+    pause
+    exit /b 1
+) else (
+    echo ffmpeg íàéäåí è ðàáîòàåò êîððåêòíî
 )
 
 :menu
 cls
 echo ===============================
-echo    ÐœÐµÐ´Ð¸Ð° ÐºÐ¾Ð½Ð²ÐµÑ€Ñ‚ÐµÑ€ Ð¸ ÑƒÑ‚Ð¸Ð»Ð¸Ñ‚Ñ‹
+echo    Ìåäèà êîíâåðòåð è óòèëèòû
 echo ===============================
-echo 1. ÐŸÑ€Ð¾Ð²ÐµÑÑ‚Ð¸ Ð²Ð¸Ð´ÐµÐ¾Ð°Ð½Ð°Ð»Ð¸Ð· (app\video_analysis.py)
-echo 2. ÐžÑ†ÐµÐ½Ð¸Ñ‚ÑŒ ÐºÐ°Ñ‡ÐµÑÑ‚Ð²Ð¾ Ð²Ð¸Ð´ÐµÐ¾ (app\video_quality.py)
-echo 3. ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð¸Ñ€Ð¾Ð²Ð°Ñ‚ÑŒ PDF Ð² JPG (app\pdf_in_jpg.py)
-echo 4. ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð¸Ñ€Ð¾Ð²Ð°Ñ‚ÑŒ JPG Ð² PDF (app\jpg_in_pdf.py)
-echo 5. ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð¸Ñ€Ð¾Ð²Ð°Ñ‚ÑŒ PDF Ð² Word (app\pdf_in_word.py)
-echo 6. ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð¸Ñ€Ð¾Ð²Ð°Ñ‚ÑŒ Word Ð² PDF (app\word_in_pdf.py)
-echo 7. ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð¸Ñ€Ð¾Ð²Ð°Ñ‚ÑŒ XLSX Ð² CSV (app\xlsx_in_csv.py)
-echo 8. Ð˜Ð·Ð²Ð»ÐµÑ‡ÑŒ email Ð¸Ð· Excel (app\extract_mail_of_exel.py)
+echo 1. Ïðîâåñòè âèäåîàíàëèç (app\video_analysis.py)
+echo 2. Îöåíèòü êà÷åñòâî âèäåî (app\video_quality.py)
+echo 3. Êîíâåðòèðîâàòü PDF â JPG (app\pdf_in_jpg.py)
+echo 4. Êîíâåðòèðîâàòü JPG â PDF (app\jpg_in_pdf.py)
+echo 5. Êîíâåðòèðîâàòü PDF â Word (app\pdf_in_word.py)
+echo 6. Êîíâåðòèðîâàòü Word â PDF (app\word_in_pdf.py)
+echo 7. Êîíâåðòèðîâàòü XLSX â CSV (app\xlsx_in_csv.py)
+echo 8. Èçâëå÷ü email èç Excel (app\extract_mail_of_exel.py)
 echo ===============================
-echo 0. Ð’Ñ‹Ñ…Ð¾Ð´
+echo 0. Âûõîä
 echo ===============================
-echo Ð˜ÑÐ¿Ð¾Ð»ÑŒÐ·ÑƒÐ¹Ñ‚Ðµ ÐºÐ»Ð°Ð²Ð¸ÑˆÐ¸ 0-8 Ð´Ð»Ñ Ð²Ñ‹Ð±Ð¾Ñ€Ð°
+echo Èñïîëüçóéòå êëàâèøè 0-8 äëÿ âûáîðà
 
-choice /c 123456780 /n /m "Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ: "
+choice /c 123456780 /n /m "Âûáåðèòå äåéñòâèå: "
 
 if errorlevel 9 goto exit
 if errorlevel 8 goto run_extract_mail
@@ -64,112 +87,112 @@ if errorlevel 1 goto run_analysis
 
 :run_analysis
 cls
-echo ÐŸÑ€Ð¾Ð²ÐµÐ´ÐµÐ½Ð¸Ðµ Ð²Ð¸Ð´ÐµÐ¾Ð°Ð½Ð°Ð»Ð¸Ð·Ð°...
+echo Ïðîâåäåíèå âèäåîàíàëèçà...
 echo ===============================
 if exist "app\video_analysis.py" (
     cd app
     python video_analysis.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\video_analysis.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\video_analysis.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
 
 :run_video_quality
 cls
-echo ÐžÑ†ÐµÐ½ÐºÐ° ÐºÐ°Ñ‡ÐµÑÑ‚Ð²Ð° Ð²Ð¸Ð´ÐµÐ¾...
+echo Îöåíêà êà÷åñòâà âèäåî...
 echo ===============================
 if exist "app\video_quality.py" (
     cd app
     python video_quality.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\video_quality.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\video_quality.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
 
 :run_pdf_jpg
 cls
-echo ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð°Ñ†Ð¸Ñ PDF Ð² JPG...
+echo Êîíâåðòàöèÿ PDF â JPG...
 echo ===============================
 if exist "app\pdf_in_jpg.py" (
     cd app
     python pdf_in_jpg.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\pdf_in_jpg.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\pdf_in_jpg.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
 
 :run_jpg_pdf
 cls
-echo ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð°Ñ†Ð¸Ñ JPG Ð² PDF...
+echo Êîíâåðòàöèÿ JPG â PDF...
 echo ===============================
 if exist "app\jpg_in_pdf.py" (
     cd app
     python jpg_in_pdf.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\jpg_in_pdf.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\jpg_in_pdf.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
 
 :run_pdf_word
 cls
-echo ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð°Ñ†Ð¸Ñ PDF Ð² Word...
+echo Êîíâåðòàöèÿ PDF â Word...
 echo ===============================
 if exist "app\pdf_in_word.py" (
     cd app
     python pdf_in_word.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\pdf_in_word.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\pdf_in_word.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
 
 :run_word_pdf
 cls
-echo ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð°Ñ†Ð¸Ñ Word Ð² PDF...
+echo Êîíâåðòàöèÿ Word â PDF...
 echo ===============================
 if exist "app\word_in_pdf.py" (
     cd app
     python word_in_pdf.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\word_in_pdf.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\word_in_pdf.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
 
 :run_xlsx_csv
 cls
-echo ÐšÐ¾Ð½Ð²ÐµÑ€Ñ‚Ð°Ñ†Ð¸Ñ XLSX Ð² CSV...
+echo Êîíâåðòàöèÿ XLSX â CSV...
 echo ===============================
 if exist "app\xlsx_in_csv.py" (
     cd app
     python xlsx_in_csv.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\xlsx_in_csv.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\xlsx_in_csv.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
 
 :run_extract_mail
 cls
-echo Ð˜Ð·Ð²Ð»ÐµÑ‡ÐµÐ½Ð¸Ðµ email Ð¸Ð· Excel...
+echo Èçâëå÷åíèå email èç Excel...
 echo ===============================
 if exist "app\extract_mail_of_exel.py" (
     cd app
     python extract_mail_of_exel.py
     cd ..
 ) else (
-    echo Ð¤Ð°Ð¹Ð» app\extract_mail_of_exel.py Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½!
+    echo Ôàéë app\extract_mail_of_exel.py íå íàéäåí!
     timeout /t 2 /nobreak >nul
 )
 goto menu
@@ -177,9 +200,9 @@ goto menu
 :exit
 cls
 echo ===============================
-echo    Ð”Ð¾ ÑÐ²Ð¸Ð´Ð°Ð½Ð¸Ñ!
+echo    Äî ñâèäàíèÿ!
 echo ===============================
-:: Ð”ÐµÐ°ÐºÑ‚Ð¸Ð²Ð¸Ñ€ÑƒÐµÐ¼ Ð²Ð¸Ñ€Ñ‚ÑƒÐ°Ð»ÑŒÐ½ÑƒÑŽ ÑÑ€ÐµÐ´Ñƒ
+:: Äåàêòèâèðóåì âèðòóàëüíóþ ñðåäó
 call "%VENV_PATH%\Scripts\deactivate.bat" >nul 2>&1
 timeout /t 1 >nul
 exit

@@ -71,7 +71,9 @@ class CarVideoConverter:
     def _check_gpu_support(self) -> bool:
         """Проверка поддержки GPU ускорения"""
         try:
-            result = subprocess.run(['ffmpeg', '-encoders'], 
+            # Указываем полный путь к ffmpeg
+            ffmpeg_exe = r"D:\codecs\ffmpeg\bin\ffmpeg.exe"
+            result = subprocess.run([ffmpeg_exe, '-encoders'], 
                                   capture_output=True, text=True, timeout=30)
             if 'h264_nvenc' in result.stdout or 'hevc_nvenc' in result.stdout:
                 return True
@@ -165,6 +167,9 @@ class CarVideoConverter:
                 'profile:a': 'aac_low'
             }
 
+            # Указываем полный путь к ffmpeg
+            ffmpeg_exe = r"D:\codecs\ffmpeg\bin\ffmpeg.exe"
+            
             (
                 ffmpeg
                 .input(input_file)
@@ -173,7 +178,7 @@ class CarVideoConverter:
                 .global_args('-y')
                 .global_args('-hide_banner')
                 .global_args('-loglevel', 'error')
-                .run()
+                .run(cmd=ffmpeg_exe)  # Указываем путь к ffmpeg
             )
 
             if temp_output and final_output:
@@ -258,11 +263,19 @@ def main():
         input("Нажмите Enter для выхода...")
         sys.exit(1)
     
+    # Проверяем, доступен ли ffmpeg по указанному пути
+    ffmpeg_exe = r"D:\codecs\ffmpeg\bin\ffmpeg.exe"
+    if not os.path.exists(ffmpeg_exe):
+        print(f"❌ FFmpeg не найден по пути: {ffmpeg_exe}")
+        print("Убедитесь, что ffmpeg установлен правильно")
+        input("Нажмите Enter для выхода...")
+        sys.exit(1)
+    
     try:
-        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        subprocess.run([ffmpeg_exe, '-version'], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("❌ FFmpeg не найден! Пожалуйста, установите FFmpeg и добавьте его в PATH")
-        print("Скачать можно с: https://ffmpeg.org/download.html")
+        print("❌ FFmpeg не работает корректно!")
+        print(f"Путь к ffmpeg: {ffmpeg_exe}")
         input("Нажмите Enter для выхода...")
         sys.exit(1)
 
