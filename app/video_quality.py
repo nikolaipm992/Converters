@@ -14,8 +14,6 @@ class CarVideoConverter:
         self.cpu_count = multiprocessing.cpu_count()
         self.memory_gb = psutil.virtual_memory().total / (1024**3)
         self.gpu_available = self._check_gpu_support()
-        
-        # Пресеты для авто с 2:1 соотношением сторон
         self.video_presets = {
             "economy": {
                 "name": "Эконом (меньше места)",
@@ -58,14 +56,12 @@ class CarVideoConverter:
                 "threads": self._get_optimal_threads()
             }
         }
-        
         self.audio_settings = {
             "codec": "aac",
             "bitrate": "320k",
             "sample_rate": 48000,
             "channels": 2
         }
-        
         self.performance_settings = {
             "max_workers": min(self.cpu_count, 4),
             "buffer_size": "16M",
@@ -92,7 +88,6 @@ class CarVideoConverter:
         """Возвращает GPU-ускоренный пресет если доступно"""
         if not self.gpu_available:
             return self.video_presets[preset_name]
-            
         gpu_presets = {
             "economy": {
                 "video_codec": "h264_nvenc",
@@ -115,7 +110,6 @@ class CarVideoConverter:
                 "profile:v": "main"
             }
         }
-        
         base_preset = self.video_presets[preset_name].copy()
         if preset_name in gpu_presets:
             base_preset.update(gpu_presets[preset_name])
@@ -123,19 +117,14 @@ class CarVideoConverter:
 
     def convert_single_file(self, input_file: str, output_file: str, 
                           preset_name: str = "balanced") -> dict:
-        """Конвертация одного файла с максимальной производительностью"""
         try:
             if not os.path.exists(input_file):
                 return {"success": False, "error": f"Файл не найден: {input_file}"}
-
             output_path = Path(output_file)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-
             input_path_obj = Path(input_file)
             output_path_obj = Path(output_file)
-            
             if input_path_obj.resolve() == output_path_obj.resolve():
-                # Если файлы совпадают, создаем временный файл
                 temp_output = output_path_obj.parent / f"temp_{output_path_obj.name}"
                 final_output = output_file
                 output_file = str(temp_output)
@@ -143,17 +132,14 @@ class CarVideoConverter:
                 temp_output = None
                 final_output = None
 
-            # Выбираем пресет
             preset = self._get_gpu_preset(preset_name) if self.gpu_available \
                     else self.video_presets[preset_name]
-            
             audio = self.audio_settings
 
             print(f"Конвертация: {input_path_obj.name}")
             print(f"Пресет: {preset['name']}")
             print(f"GPU ускорение: {'Да' if self.gpu_available else 'Нет'}")
 
-            # Подготавливаем аргументы
             video_args = {
                 'vcodec': preset['video_codec'],
                 'b:v': preset['video_bitrate'],
@@ -166,22 +152,19 @@ class CarVideoConverter:
                 'flags': '+low_delay',
                 'movflags': '+faststart',
             }
-            
-            # Добавляем профиль для видео
+
             if 'profile:v' in preset:
                 video_args['profile:v'] = preset['profile:v']
 
-            # Улучшенные настройки аудио для максимального качества
             audio_args = {
                 'acodec': audio['codec'],
                 'b:a': audio['bitrate'],
                 'ar': audio['sample_rate'],
                 'ac': audio['channels'],
-                'q:a': 0,  # Максимальное качество AAC
-                'profile:a': 'aac_low'  # Профиль AAC
+                'q:a': 0,
+                'profile:a': 'aac_low'
             }
 
-            # Выполняем конвертацию
             (
                 ffmpeg
                 .input(input_file)
@@ -193,12 +176,10 @@ class CarVideoConverter:
                 .run()
             )
 
-            # Если использовали временный файл, перемещаем его
             if temp_output and final_output:
                 temp_output.replace(final_output)
 
             return {"success": True, "error": None}
-
         except ffmpeg.Error as e:
             error_msg = f"FFmpeg ошибка: {e.stderr.decode() if e.stderr else str(e)}"
             print(f"❌ Ошибка конвертации {input_file}: {error_msg}")
@@ -212,19 +193,13 @@ class CarVideoConverter:
                      preset_name: str = "balanced") -> Dict[str, dict]:
         """Пакетная конвертация с сохранением в указанной папке"""
         results = {}
-        
         for i, input_file in enumerate(input_files):
-            # Создаем имя для выходного файла в той же папке
             input_path = Path(input_file)
-            
-            # Если output_dir не указан или ".", сохраняем в той же папке
-            if output_dir == "." or output_dir == input_path.parent:
+            if output_dir == "." or output_dir == str(input_path.parent):
                 output_file = input_path.parent / f"{input_path.stem}_converted.mp4"
             else:
-                # Иначе сохраняем в указанной папке
                 output_file = Path(output_dir) / f"{input_path.stem}_converted.mp4"
-            
-            # Если файл уже существует с таким именем, добавляем номер
+
             counter = 1
             while output_file.exists():
                 if output_dir == "." or output_dir == str(input_path.parent):
@@ -232,16 +207,14 @@ class CarVideoConverter:
                 else:
                     output_file = Path(output_dir) / f"{input_path.stem}_converted_{counter}.mp4"
                 counter += 1
-            
-            print(f"\n[{i+1}/{len(input_files)}] Обработка: {input_path.name}")
+
+            print(f"[{i+1}/{len(input_files)}] Обработка: {input_path.name}")
             result = self.convert_single_file(str(input_path), str(output_file), preset_name)
             results[input_file] = result
-            
             if result["success"]:
                 print(f"✅ Успешно → {output_file.name}")
             else:
                 print(f"❌ Ошибка: {result['error']}")
-            
         return results
 
     def auto_preset_selection(self, file_size_mb: float) -> str:
@@ -265,20 +238,26 @@ class CarVideoConverter:
         """
         return info
 
-def find_video_files(directory: str = ".") -> List[str]:
-    """Поиск видео файлов в директории"""
+def find_video_files(directory: str = r'D:\Converters') -> List[str]:
+    """Поиск видео файлов в директории D:\Converters"""
     video_extensions = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm'}
     video_files = []
-    
     path = Path(directory)
     for file in path.iterdir():
         if file.is_file() and file.suffix.lower() in video_extensions:
             video_files.append(str(file))
-    
     return video_files
 
 def main():
-    # Проверяем, установлен ли ffmpeg
+    # Фиксированный путь к папке Converters
+    folder_path = r'D:\Converters'
+    
+    # Проверяем существование папки
+    if not os.path.exists(folder_path):
+        print(f"❌ Папка {folder_path} не существует!")
+        input("Нажмите Enter для выхода...")
+        sys.exit(1)
+    
     try:
         subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -286,33 +265,31 @@ def main():
         print("Скачать можно с: https://ffmpeg.org/download.html")
         input("Нажмите Enter для выхода...")
         sys.exit(1)
-    
+
     converter = CarVideoConverter()
-    
     print("🚀 Авто Видео Конвертер (2:1 соотношение сторон)")
     print(converter.get_system_info())
+    print(f"🔍 Поиск видео файлов в папке: {folder_path}")
     
-    # Поиск видео файлов в текущей папке
-    print("🔍 Поиск видео файлов в текущей папке...")
-    input_files = find_video_files(".")
+    input_files = find_video_files(folder_path)
     
     if not input_files:
-        print("❌ Не найдено видео файлов в текущей папке")
+        print("❌ В папке D:\\Converters не найдено видео файлов для конвертации.")
+        print("Поддерживаемые форматы: .mp4, .avi, .mkv, .mov, .wmv, .flv, .webm")
         input("Нажмите Enter для выхода...")
         return
-    
+
     print(f"📥 Найдено файлов: {len(input_files)}")
     for file in input_files:
         print(f"   - {Path(file).name}")
-    
-    # Выбор пресета
+
     print("\n⚙️  Выберите пресет качества:")
     print("   1. Economy (меньше места, 1280x640)")
     print("   2. Balanced (баланс, 1920x960) [по умолчанию]")
     print("   3. Quality (лучшее качество, 1920x960)")
     print("   4. Ultra (максимум, H.265, 1920x960)")
     print("   5. Auto (автоматический выбор по размеру файла)")
-    
+
     choice = input("\nВведите номер (1-5) или нажмите Enter для Balanced: ").strip()
     
     preset_map = {
@@ -327,14 +304,14 @@ def main():
         preset_choice = preset_map[choice]
     else:
         preset_choice = "balanced"
-    
+
     auto_preset = (preset_choice == "auto")
     if not auto_preset and preset_choice != "balanced":
         preset_name = preset_choice
     else:
         preset_name = "balanced"
-    
-    print(f"\n🎯 Выбран режим: {'Автоматический' if auto_preset else preset_name}")
+
+    print(f"\n🎯 Выбран режим: {'Автоматический' if auto_preset else converter.video_presets[preset_name]['name']}")
     
     start_time = time.time()
     
@@ -345,22 +322,17 @@ def main():
             try:
                 size_mb = os.path.getsize(input_file) / (1024 * 1024)
                 preset = converter.auto_preset_selection(size_mb)
-                
                 input_path = Path(input_file)
-                # Сохраняем в той же папке
                 output_file = input_path.parent / f"{input_path.stem}_converted.mp4"
-                
-                # Проверяем уникальность имени файла
                 counter = 1
                 while output_file.exists():
                     output_file = input_path.parent / f"{input_path.stem}_converted_{counter}.mp4"
                     counter += 1
-                
+
                 print(f"\nОбработка: {input_path.name} ({size_mb:.1f} МБ)")
-                print(f"Выбран пресет: {preset}")
+                print(f"Выбран пресет: {converter.video_presets[preset]['name']}")
                 result = converter.convert_single_file(str(input_path), str(output_file), preset)
                 results[input_file] = result
-                
                 if result["success"]:
                     print(f"✅ Успешно → {output_file.name}")
                 else:
@@ -368,21 +340,19 @@ def main():
             except Exception as e:
                 results[input_file] = {"success": False, "error": str(e)}
     else:
-        print(f"🚀 Начало конвертации с пресетом: {preset_name}")
-        # Сохраняем в той же папке (второй параметр "." или опущен)
-        results = converter.batch_convert(input_files, ".", preset_name)
-    
+        print(f"🚀 Начало конвертации с пресетом: {converter.video_presets[preset_name]['name']}")
+        results = converter.batch_convert(input_files, folder_path, preset_name)
+
     end_time = time.time()
     duration = end_time - start_time
-    
+
     successful = sum(1 for r in results.values() if r["success"])
-    
     print(f"\n📊 РЕЗУЛЬТАТЫ:")
     print(f"   Успешно: {successful}/{len(results)}")
     print(f"   Время: {duration:.1f} секунд")
     if duration > 0 and successful > 0:
         print(f"   Скорость: {successful/duration:.2f} файлов/сек")
-    
+
     if successful < len(results):
         print(f"\n⚠️  Ошибок: {len(results) - successful}")
         failed_files = [f for f, r in results.items() if not r["success"]]
@@ -390,15 +360,15 @@ def main():
             print(f"   - {Path(failed_file).name}")
         if len(failed_files) > 5:
             print(f"   ... и ещё {len(failed_files) - 5} файлов")
-    
-    print(f"\n📁 Сконвертированные файлы сохранены в той же папке")
+
+    print(f"\n📁 Сконвертированные файлы сохранены в папке: {folder_path}")
     input("\nНажмите Enter для выхода...")
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠️  Прервано пользователем")
+        print("\n⚠️  Прервано пользователем")
         input("Нажмите Enter для выхода...")
         sys.exit(1)
     except Exception as e:

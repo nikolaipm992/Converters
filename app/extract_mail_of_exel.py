@@ -5,15 +5,21 @@ import os
 # Регулярное выражение для email
 EMAIL_REGEX = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
 
-# Путь к текущей папке
-folder_path = '.'  # текущая директория
-output_file = 'emails.txt'
+# Фиксированный путь к папке Converters
+folder_path = r'D:\Converters'
+output_file = os.path.join(folder_path, 'emails.txt')
 
-# Поиск всех Excel-файлов (.xls и .xlsx)
+# Проверяем существование папки
+if not os.path.exists(folder_path):
+    print(f"❌ Папка {folder_path} не существует!")
+    input("Нажмите Enter для выхода...")
+    exit()
+
+# Поиск всех Excel-файлов (.xls и .xlsx) в папке D:\Converters
 excel_files = [f for f in os.listdir(folder_path) if f.endswith('.xls') or f.endswith('.xlsx')]
 
 if not excel_files:
-    print("❌ В текущей папке не найдено файлов Excel (.xls или .xlsx)")
+    print("❌ В папке D:\\Converters не найдено файлов Excel (.xls или .xlsx)")
 else:
     print(f"✅ Найдено {len(excel_files)} Excel-файлов. Начинаем обработку...\n")
 
@@ -48,7 +54,7 @@ total_emails = len(all_emails)
 unique_emails = list(set(all_emails))
 duplicate_count = total_emails - len(unique_emails)
 
-# Сохраняем уникальные email в файл
+# Сохраняем уникальные email в файл в папке D:\Converters
 try:
     with open(output_file, 'w', encoding='utf-8') as f:
         for email in unique_emails:
@@ -59,3 +65,5 @@ try:
     print(f"📂 Уникальные email'ы сохранены в файл: {output_file}")
 except Exception as e:
     print(f"❌ Не удалось сохранить файл: {e}")
+
+input("\nНажмите Enter для выхода...")

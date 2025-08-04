@@ -1,0 +1,10 @@
+pandas
+openpyxl
+xlrd
+PyMuPDF
+pdf2docx
+python-docx
+docx2pdf
+ffmpeg-python
+psutil
+openpyxl

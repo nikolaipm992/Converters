@@ -135,21 +135,34 @@ def save_results_to_file(results, output_file):
 
 # Основной код
 if __name__ == "__main__":
-    # Укажите путь к папке с видеофайлами
-    folder_path = "."  # Текущая папка, можно изменить
+    # Фиксированный путь к папке Converters
+    folder_path = r'D:\Converters'
     
-    print("Начинаем анализ видеофайлов...")
-    print(f"Папка: {os.path.abspath(folder_path)}")
+    # Проверяем существование папки
+    if not os.path.exists(folder_path):
+        print(f"❌ Папка {folder_path} не существует!")
+        input("Нажмите Enter для выхода...")
+        exit()
+    
+    print("🔍 Начинаем анализ видеофайлов...")
+    print(f"📁 Папка: {folder_path}")
     
     # Анализируем все видеофайлы
     results = analyze_all_videos_in_folder(folder_path)
     
-    # Выводим результаты
-    print_results(results)
+    if not results:
+        print("❌ В папке D:\\Converters не найдено видеофайлов для анализа.")
+        print("Поддерживаемые форматы: .mp4, .avi, .mkv, .mov, .wmv, .flv, .webm")
+    else:
+        # Выводим результаты
+        print_results(results)
+        
+        # Сохраняем в файл в папке D:\Converters
+        output_file = os.path.join(folder_path, "video_analysis_result.txt")
+        save_results_to_file(results, output_file)
+        print(f"\n📊 Результаты сохранены в файл: {output_file}")
+        
+        # Выводим краткую сводку
+        print(f"\n📈 Всего проанализировано файлов: {len(results)}")
     
-    # Сохраняем в файл
-    save_results_to_file(results, "video_analysis_result.txt")
-    print(f"\n📊 Результаты сохранены в файл: video_analysis_result.txt")
-    
-    # Выводим краткую сводку
-    print(f"\n📈 Всего проанализировано файлов: {len(results)}")
+    input("\nНажмите Enter для выхода...")
