@@ -72,7 +72,7 @@ class CarVideoConverter:
         """Проверка поддержки GPU ускорения"""
         try:
             # Указываем полный путь к ffmpeg
-            ffmpeg_exe = r"D:\codecs\ffmpeg\bin\ffmpeg.exe"
+            ffmpeg_exe = r"D:\codecs\ffmpeg\ffmpeg.exe"
             result = subprocess.run([ffmpeg_exe, '-encoders'], 
                                   capture_output=True, text=True, timeout=30)
             if 'h264_nvenc' in result.stdout or 'hevc_nvenc' in result.stdout:
@@ -168,7 +168,7 @@ class CarVideoConverter:
             }
 
             # Указываем полный путь к ffmpeg
-            ffmpeg_exe = r"D:\codecs\ffmpeg\bin\ffmpeg.exe"
+            ffmpeg_exe = r"D:\codecs\ffmpeg\ffmpeg.exe"
             
             (
                 ffmpeg
@@ -264,7 +264,7 @@ def main():
         sys.exit(1)
     
     # Проверяем, доступен ли ffmpeg по указанному пути
-    ffmpeg_exe = r"D:\codecs\ffmpeg\bin\ffmpeg.exe"
+    ffmpeg_exe = r"D:\codecs\ffmpeg\ffmpeg.exe"
     if not os.path.exists(ffmpeg_exe):
         print(f"❌ FFmpeg не найден по пути: {ffmpeg_exe}")
         print("Убедитесь, что ffmpeg установлен правильно")

@@ -8,3 +8,4 @@ docx2pdf
 ffmpeg-python
 psutil
 openpyxl
+PyPDF2

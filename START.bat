@@ -60,22 +60,24 @@ cls
 echo ===============================
 echo    Медиа конвертер и утилиты
 echo ===============================
-echo 1. Провести видеоанализ (app\video_analysis.py)
-echo 2. Оценить качество видео (app\video_quality.py)
+echo 1. Провести видео-аудио анализ (app\video_analysis.py)
+echo 2. Конвертировать качество видео (app\video_quality.py)
 echo 3. Конвертировать PDF в JPG (app\pdf_in_jpg.py)
 echo 4. Конвертировать JPG в PDF (app\jpg_in_pdf.py)
 echo 5. Конвертировать PDF в Word (app\pdf_in_word.py)
 echo 6. Конвертировать Word в PDF (app\word_in_pdf.py)
 echo 7. Конвертировать XLSX в CSV (app\xlsx_in_csv.py)
 echo 8. Извлечь email из Excel (app\extract_mail_of_exel.py)
+echo 9. Объединить PDF файлы (app\pdf_merge.py)
 echo ===============================
 echo 0. Выход
 echo ===============================
-echo Используйте клавиши 0-8 для выбора
+echo Используйте клавиши 0-9 для выбора
 
-choice /c 123456780 /n /m "Выберите действие: "
+choice /c 1234567890 /n /m "Выберите действие: "
 
-if errorlevel 9 goto exit
+if errorlevel 10 goto exit
+if errorlevel 9 goto run_pdf_merge
 if errorlevel 8 goto run_extract_mail
 if errorlevel 7 goto run_xlsx_csv
 if errorlevel 6 goto run_word_pdf
@@ -193,6 +195,18 @@ if exist "app\extract_mail_of_exel.py" (
     cd ..
 ) else (
     echo Файл app\extract_mail_of_exel.py не найден!
+    timeout /t 2 /nobreak >nul
+)
+goto menu
+
+:run_pdf_merge
+cls
+echo Объединение PDF файлов...
+echo ===============================
+if exist "app\pdf_merge.py" (
+    python app/pdf_merge.py
+) else (
+    echo Файл app\pdf_merge.py не найден!
     timeout /t 2 /nobreak >nul
 )
 goto menu
