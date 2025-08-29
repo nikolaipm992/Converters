@@ -9,3 +9,8 @@ ffmpeg-python
 psutil
 openpyxl
 PyPDF2
+pytesseract
+pillow
+easyocr
+paddlepaddle-gpu 
+paddleocr
