@@ -11,7 +11,6 @@
 - [Установка и настройка](#-установка-и-настройка)
 - [Использование](#-использование)
 - [Расширение функционала](#-расширение-функционала)
-- [Структура проекта](#-структура-проекта)
 - [Полезные инструменты](#-полезные-инструменты)
 - [Контакты](#-контакты)
 
@@ -87,29 +86,6 @@
     "module": "actions.my_converter",
     "function": "resize_image"
    }
-
----
-
-## 📂 Структура проекта
-
-converters/│
-├── run.py
-├── setup.py
-├── uninstall.py
-├── config.json
-├── audio_settings.json
-├── requirements.txt
-├── README.md
-├── ffmpeg.exe (опционально)
-├── modules/
-│   └── actions/
-│       ├── image_to_pdf.py
-│       ├── pdf_to_image.py
-│       ├── video_to_audio.py
-│       ├── convert_audio.py
-│       ├── image_resizer.py
-│       └── audio_converter.py
-└── venv/
 
 ---
 
