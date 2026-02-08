@@ -1,4 +1,4 @@
 @echo off
-cd /d "D:\TESKO\python\converters"
+cd "%~dp0"
 call venv\Scripts\activate
 python run.py %1
