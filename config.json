@@ -1,0 +1,34 @@
+{
+  "actions": [
+    {
+      "display": "Конвертировать изображение в PDF",
+      "module": "actions.image_to_pdf",
+      "function": "image_to_pdf"
+    },
+    {
+      "display": "Конвертировать PDF в изображение",
+      "module": "actions.pdf_to_image",
+      "function": "pdf_to_image"
+    },
+    {
+      "display": "Извлечь аудио из видео",
+      "module": "actions.video_to_audio",
+      "function": "video_to_audio"
+    },
+    {
+      "display": "Конвертировать аудио",
+      "module": "actions.audio_converter",
+      "function": "convert_audio_with_preset"
+    },
+    {
+      "display": "Объединить PDF",
+      "module": "actions.pdf_merger",
+      "function": "merge_pdfs"
+    },
+    {
+      "display": "Изменить размер изображения",
+      "module": "actions.image_resizer",
+      "function": "resize_image"
+    }
+  ]
+}

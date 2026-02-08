@@ -1,0 +1,24 @@
+{
+  "presets": {
+    "MP3 High Quality": {
+      "format": "mp3",
+      "bitrate": "320k",
+      "frequency": 44100
+    },
+    "MP3 Medium Quality": {
+      "format": "mp3",
+      "bitrate": "192k",
+      "frequency": 44100
+    },
+    "WAV Lossless": {
+      "format": "wav",
+      "bitrate": null,
+      "frequency": 44100
+    }
+  },
+
+
+  "format": "mp3",
+  "bitrate": "320k",
+  "sample_rate": 48000
+}
