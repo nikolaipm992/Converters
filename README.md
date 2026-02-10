@@ -102,3 +102,5 @@ pydub — библиотека для работы с аудио.
 - **GitHub:** [@nikolaipm992]
 - **Email:** [nikolaipm992@yandex.ru]
 - **Telegram:** [@N_P1725]
+
+---
