@@ -3,3 +3,7 @@ pydub
 PyMuPDF
 opencv-python
 PyPDF2
+SpeechRecognition
+pydub
+vosk
+openai-whisper

@@ -29,6 +29,11 @@
       "display": "Изменить размер изображения",
       "module": "actions.image_resizer",
       "function": "resize_image"
+    },
+    {
+      "display": "Распознать речь из аудио (Whisper)",
+      "module": "actions.audio_to_text_whisper",
+      "function": "audio_to_text_whisper"
     }
   ]
 }
